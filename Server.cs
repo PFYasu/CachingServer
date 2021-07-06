@@ -12,31 +12,33 @@ namespace CachingServer
     {
         public string Address { get; private set; }
         public int Port { get; private set; }
-        public long ValueBytes
+        public int ConnectedUsers { get; private set; }
+        public int ValueBytes
         {
             get
             {
                 return bd.ValueBytes;
             }
         }
-        public int ConnectedUsers { get; private set; }
 
         private readonly TcpListener listener;
         private readonly ByteData bd;
 
-        public Server(string address, int port, long dataLimiter = 128000000)
+        public Server(string address, int port, int dataLimiter)
         {
             Address = address;
             Port = port;
+            ConnectedUsers = 0;
+
             listener = new TcpListener(IPAddress.Parse(Address), Port);
             bd = new ByteData(dataLimiter);
-            ConnectedUsers = 0;
         }
 
         public void Start()
         {
             Console.WriteLine("Server started! Waiting for first connection..");
             listener.Start();
+
             while (true)
             {
                 TcpClient client = listener.AcceptTcpClient();
@@ -63,6 +65,7 @@ namespace CachingServer
                 {
                     break;
                 }
+
                 var foundCommand = findCommand(receivedBytes);
 
                 if (foundCommand.Item1 != -1 && foundCommand.Item2 == "get")
@@ -157,8 +160,6 @@ namespace CachingServer
             {
                 return (-1, null);
             }
-
-
         }
 
         private void executeSet(List<byte> bytes, int position, List<byte> value)
@@ -176,20 +177,16 @@ namespace CachingServer
             }
             bytes.RemoveRange(0, spacePos + 1);
 
-            byte[] length = new byte[bytes.Count];
-            for (int i = 0; i < length.Length; i++)
-            {
-                length[i] = bytes[i];
-            }
+            int length = int.Parse(Encoding.UTF8.GetString(bytes.ToArray()));
 
             List<byte> val = new List<byte>();
-            for(int i = 0; i < value.Count && i < int.Parse(Encoding.UTF8.GetString(length)); i++)
+            for(int i = 0; i < value.Count && i < length; i++)
             {
                 val.Add(value[i]);
             }
-            bd.SetValue(key, val);
-        }
 
+            bd.SetValue(key, val); 
+        }
 
         private int getPatternPosition(List<byte> bytes, byte[] pattern)
         {
